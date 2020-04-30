@@ -48,23 +48,24 @@ push @contigs, $block;  # push last sequence block onto list
 close ASM;
 
 # loop through each contig, perform LAST self-alignment, trim, output
+open LOG, ">$fname.log";
 $n = 0;  # keeps track of sequence count
 while (@contigs) {
-    #print "contig\t";     # debug
-    #print $#contigs + 1;  # debug
-    #print "\n";           # debug
+    #print LOG "contig\t";     # debug
+    #print LOG $#contigs + 1;  # debug
+    #print LOG "\n";           # debug
     $block = shift(@contigs);
     $n++;
     open SEQ, ">temp.apc.fa";
     print SEQ $block;
     close SEQ;
-    print "formatting LAST db ... ";
+    print LOG "formatting LAST db ... ";
     $command = "lastdb temp.apc temp.apc.fa";  # format lastdb for current contig
     system($command);
-    print "running LAST self-alignment ... ";
+    print LOG "running LAST self-alignment ... ";
     $command = "lastal -s 1 -x 300 -f 0 -T 1 temp.apc temp.apc.fa > temp.apc.lastal";  # self align current contig
     system($command);
-    print "done\n";
+    print LOG "done\n";
     # pull in output of current contig's LAST self-alignment
     open LAST, "<temp.apc.lastal";
     undef(@alignment);
@@ -78,21 +79,21 @@ while (@contigs) {
     # second and third lines should be near identical end-overlaps
     if ($#alignment + 1 == 3) {
 	# check that first is full self alignment
-	#print "three alignments in LAST output!\n";  # debug
+	# print LOG "three alignments in LAST output!\n";  # debug
 	# check that 2nd and 3rd are near identical overlaps
 	@overlap5prime = split("\t", $alignment[1]);
 	@overlap3prime = split("\t", $alignment[2]);
-	#print $overlap5prime[0]."\n";  # debug
-	#print $overlap3prime[0]."\n";  # debug
+	# print LOG $overlap5prime[0]."\n";  # debug
+	# print LOG $overlap3prime[0]."\n";  # debug
 	if ($overlap5prime[0] == $overlap3prime[0]) {
 	    $start5prime = $overlap5prime[2] + 1;  # 0-based!
 	    $end5prime = $start5prime + $overlap5prime[3] - 1;
 	    $start3prime = $overlap3prime[2] + 1;  # 0-based!
 	    $end3prime = $start3prime + $overlap3prime[3] - 1;
-	    print "Overlap detected between  ";
-	    print $overlap5prime[1].":".$start5prime."-".$end5prime;
-	    print "  and  ";
-	    print $overlap3prime[1].":".$start3prime."-".$end3prime."\n";
+	    print LOG "Overlap detected between  ";
+	    print LOG $overlap5prime[1].":".$start5prime."-".$end5prime;
+	    print LOG "  and  ";
+	    print LOG $overlap3prime[1].":".$start3prime."-".$end3prime."\n";
 	    # trim one overlap, then permute halfway
 	    $block =~ m/^(.*\n)(.*)$/;
 	    $header = $1;
@@ -110,30 +111,31 @@ while (@contigs) {
 	    if (defined($opt_r)) {
 		# use bwa mem to align reads to permuted sequence
 		$command = "bwa index $fname.$n.fa 2> $fname.$n.aln.log";
-		print "indexing permuted sequence ... ";
+		print LOG "indexing permuted sequence ... ";
 		system($command);
 		$command = "bwa mem -M $fname.$n.fa $opt_r 2>> $fname.$n.aln.log | gzip > $fname.$n.sam.gz";
-		print "aligning reads to permuted sequence ... ";
+		print LOG "aligning reads to permuted sequence ... ";
 		system($command);
 		$command = "samtools view -uhS $fname.$n.sam.gz 2>> $fname.$n.aln.log | samtools sort - $fname.$n 2>> $fname.$n.aln.log";
-		print "sorting BAM file of aligned reads ... ";
+		print LOG "sorting BAM file of aligned reads ... ";
 		system($command);
 		$command = "samtools index $fname.$n.bam 2>> $fname.$n.aln.log";
-		print "indexing BAM file ... ";
+		print LOG "indexing BAM file ... ";
 		system($command);
-		print "done\n";
+		print LOG "done\n";
 	    }
 	}
 	else {
 	    system("mv temp.apc.lastal apc_aln_$n.txt");
-	    print "irregular LAST results ... check local file apc_aln_$n.txt\n";
+	    print LOG "irregular LAST results ... check local file apc_aln_$n.txt\n";
 	}
     }
     else {
 	system("mv temp.apc.lastal apc_aln_$n.txt");
-	print "irregular LAST results ... check local file apc_aln_$n.txt\n";
+	print LOG "irregular LAST results ... check local file apc_aln_$n.txt\n";
     }
 }
+close LOG;
 
 # clean up temp files!
 system("rm temp.apc*");
